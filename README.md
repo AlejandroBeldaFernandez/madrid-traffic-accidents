@@ -175,12 +175,12 @@ A `ColumnTransformer` applies different transformations to each feature group:
 
 | Feature group | Features | Transformation |
 |---|---|---|
-| High-cardinality categorical | `district`, `weather_conditions`, `time_slot` | Target Encoding |
-| Ordered categorical | `accident_type` | Ordinal Encoding |
-| Low-cardinality categorical | `season` | One-Hot Encoding |
-| Numeric | `num_persons`, `num_vehicles` | Standard Scaling |
-| Binary flags | `flag_moto`, `flag_car`, etc. | Passthrough |
-| Temporal | `year` | Passthrough |
+| High-cardinality categorical |  Target Encoding |
+| Ordered categorical | Ordinal Encoding |
+| Low-cardinality categorical | One-Hot Encoding |
+| Numeric  | Standard Scaling |
+| Binary flags | Passthrough |
+| Temporal | Passthrough |
 
 All transformers are fitted exclusively on the training set. Target Encoding uses cross-validated smoothing to prevent target leakage.
 
