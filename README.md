@@ -173,7 +173,7 @@ The project follows a structured supervised learning workflow:
 
 A `ColumnTransformer` applies different transformations to each feature group:
 
-| Feature group | Features | Transformation |
+| Feature group | Transformation |
 |---|---|---|
 | High-cardinality categorical |  Target Encoding |
 | Ordered categorical | Ordinal Encoding |
