@@ -58,8 +58,8 @@ The features used (accident type, time, district, number of vehicles, vehicle ty
 - **Source:** Open data portal of the Madrid City Council
 - **Period:** 2019–2023 (five years)
 - **Granularity:** One row per person involved in an accident
-- **Size:** ~170,000 rows before cleaning
-- **Key columns:**
+- **Size:** 212511 rows before cleaning
+- **Some columns:**
 
 | Column | Description |
 |---|---|
