@@ -19,8 +19,7 @@ Supervised binary classification project to predict whether a traffic accident i
 11. [Problems Encountered](#problems-encountered)
 12. [Conclusions](#conclusions)
 13. [Possible Improvements](#possible-improvements)
-14. [Project Structure](#project-structure)
-15. [Requirements](#requirements)
+14. [Requirements](#requirements)
 
 ---
 
