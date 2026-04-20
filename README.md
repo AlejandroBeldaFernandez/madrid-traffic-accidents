@@ -200,14 +200,13 @@ Three models were trained, all with class imbalance handling:
 
 - **Imbalance handling:** `class_weight` (`balanced` / `balanced_subsample`)
 - **Optimised hyperparameters:** `n_estimators`, `max_depth`, `min_samples_split`, `min_samples_leaf`, `max_features`
-- **Optimisation:** Optuna, 50 trials, stratified 5-fold CV, balanced accuracy as objective
+- **Optimisation:** Optuna, 150 trials, stratified 5-fold CV, balanced accuracy as objective
 
 ### CatBoost
 
 - **Imbalance handling:** `auto_class_weights` (`Balanced` / `SqrtBalanced`) as a hyperparameter
 - **Optimised hyperparameters:** `depth`, `learning_rate`, `l2_leaf_reg`, `bagging_temperature`, `iterations`, `auto_class_weights`
-- **Optimisation:** Optuna with manual `StratifiedKFold` loop (required to pass `verbose=0` to CatBoost fit)
-- **Note:** `bagging_temperature` and `subsample` are mutually exclusive in CatBoost (they correspond to Bayesian vs Bernoulli bootstrap modes). Only `bagging_temperature` was used.
+- **Optimisation:** Optuna with manual `StratifiedKFold` loop (required to pass `verbose=0` to CatBoost fit) and 150 trials.
 
 Balanced accuracy was chosen as the cross-validation metric because it accounts for class imbalance by averaging recall across both classes, giving equal weight to correct identification of injured and no_injury accidents.
 
@@ -297,9 +296,6 @@ For a production deployment, Logistic Regression is the recommended model. It ma
 - **Resampling with SMOTE or ADASYN.** Applying synthetic minority over-sampling (SMOTE, BorderlineSMOTE, ADASYN) or combined over/under-sampling strategies from the `imbalanced-learn` library could improve recall and precision on the `no_injury` class.
 - **Imbalanced-learn native classifiers.** Ensemble methods designed specifically for imbalanced problems — `BalancedRandomForest`, `EasyEnsembleClassifier`, `RUSBoostClassifier` — could outperform the current models, particularly on the minority class.
 - **Threshold optimisation.** Rather than using the default 0.5 classification threshold, tuning it on a validation set to minimise false negatives subject to a precision constraint would better align the model with operational requirements.
-- **Spatial features.** If coordinate data quality improves, or if addresses can be geocoded, spatial features (road type, zone speed limit, hospital proximity, intersection density) would likely add meaningful predictive signal.
-- **External data integration.** Adding road infrastructure data, real-time traffic volume, or historical accident density per location could significantly improve model performance.
-- **Temporal modelling.** Exploring whether accident risk patterns have changed meaningfully post-COVID (2022–2023 vs 2019–2020) could justify training separate models per period or adding temporal drift detection.
 
 ---
 
