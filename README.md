@@ -1,6 +1,6 @@
 # Traffic Accident Injury Prediction — Madrid 2019–2023
 
-Supervised binary classification project to predict whether a traffic accident in Madrid will result in at least one injured person, using open data from the Madrid City Council (2019–2023).
+Supervised binary classification project to predict whether a traffic accident in Madrid will result in at least one injured person, using open data from the Madrid City (2019–2023).
 
 ---
 
@@ -280,13 +280,15 @@ The dataset includes UTM GPS coordinates for each accident. During cleaning we d
 
 ## Conclusions
 
-This project demonstrates that it is possible to build a functional binary injury predictor for Madrid traffic accidents using only immediately available incident information. The best model (CatBoost) achieves a ROC AUC of 0.873 and a balanced accuracy of 0.801, with a macro F1 of 0.73 — solid performance given the class imbalance and the limited feature set.
+This project demonstrates that it is possible to predict traffic accident injuries in Madrid using only information available at the moment the incident is reported, before any medical assessment takes place.
 
-The most important predictors are accident type and the number of vehicles involved, both of which are available in the initial accident report. This validates the core assumption of the project: that enough signal exists in pre-injury information to make a useful prediction.
+The best model (CatBoost) achieves a ROC AUC of 0.873 and a balanced accuracy of 0.801. More importantly, the two strongest predictors are accident type and number of vehicles involved, both of which are captured in the initial report filed by the responding officer. This means the prediction can be made in real time, at the scene, with no additional data collection required.
 
-The main limitation is low precision on the no_injury class, a direct consequence of the imbalanced dataset. Improving this will require either more sophisticated resampling strategies or models specifically designed for imbalanced learning.
+The practical implication is concrete: emergency coordination services could use a model of this kind to prioritise resource dispatch. Accidents flagged as high injury probability would trigger faster ambulance allocation or alert nearby medical units, reducing response time in the cases where it matters most.
 
-From a production standpoint, Logistic Regression is the recommended model: it matches the performance of more complex alternatives closely enough that its simplicity, interpretability, and computational efficiency justify the choice.
+The main current limitation is precision on the no injury class, which generates false positives. In an emergency context this is the preferable type of error  it is safer to dispatch resources unnecessarily than to fail to respond to a genuine injury  but it has operational cost implications that would need to be evaluated against the budget constraints of the deploying organisation.
+
+For a production deployment, Logistic Regression is the recommended model. It matches CatBoost closely enough in performance that its interpretability and low computational cost justify the choice, particularly in environments where decisions need to be auditable and explainable to non-technical stakeholders.
 
 ---
 
@@ -301,19 +303,6 @@ From a production standpoint, Logistic Regression is the recommended model: it m
 
 ---
 
-## Project Structure
-
-```
-.
-├── Traffic_accidents_in_Madrid_(Spain)_from_2019_2023.ipynb   # Main notebook
-├── logistic_model.pkl       # Trained Logistic Regression pipeline
-├── rf_model.pkl             # Trained Random Forest pipeline
-├── catboost_model.pkl       # Trained CatBoost model
-├── catboost_info/           # CatBoost training logs
-└── README.md
-```
-
----
 
 ## Requirements
 
@@ -326,7 +315,6 @@ scikit-learn
 catboost
 optuna
 shap
-imbalanced-learn  # for future improvements
 ```
 
 Install all dependencies:
@@ -337,4 +325,4 @@ pip install pandas numpy matplotlib seaborn scikit-learn catboost optuna shap im
 
 ---
 
-*Data source: [Portal de Datos Abiertos del Ayuntamiento de Madrid](https://datos.madrid.es)*
+*Data source: https://www.kaggle.com/datasets/leomed666/traffic-accidents-in-madrid-spain-from-2019-2023*
