@@ -1,7 +1,9 @@
 # Traffic Accident Injury Prediction — Madrid 2019–2023
 
+
 Supervised binary classification project to predict whether a traffic accident in Madrid will result in at least one injured person, using open data from the Madrid City (2019–2023).
 
+> [Proyecto en Español](https://github.com/AlejandroBeldaFernandez/madrid-traffic-accidents/blob/main/README_ES.md)
 ---
 
 ## Table of Contents
