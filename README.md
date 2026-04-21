@@ -3,6 +3,10 @@
 
 Supervised binary classification project to predict whether a traffic accident in Madrid will result in at least one injured person, using open data from the Madrid City (2019–2023).
 
+- **Problem:** Predict injury risk from the first accident report, before any medical assessment takes place
+- **Result:** 83% recall on injury accidents, ROC AUC 0.873
+- **Value:** First triage layer for emergency dispatch — enabling faster ambulance allocation in the cases that matter most
+
 > [Proyecto en Español](https://github.com/AlejandroBeldaFernandez/madrid-traffic-accidents/blob/main/README_ES.md)
 ---
 
@@ -217,6 +221,8 @@ Balanced accuracy was chosen as the cross-validation metric because it accounts 
 
 ### Test set performance
 
+> **Reading the metrics:** ROC AUC measures overall discrimination ability (1.0 = perfect, 0.5 = random guess). Balanced accuracy adjusts for class imbalance by averaging recall across both classes. Recall on `injured` measures how many real injury accidents the model correctly catches — the most operationally critical metric.
+
 | Model | ROC AUC | Balanced Accuracy | F1 no_injury | F1 injured | Macro F1 |
 |---|---|---|---|---|---|
 | Logistic Regression | 0.851 | 0.787 | 0.55 | 0.85 | 0.70 |
@@ -227,8 +233,12 @@ Balanced accuracy was chosen as the cross-validation metric because it accounts 
 
 - All three models perform at a similar level. The differences in ROC AUC and balanced accuracy are small (< 0.03).
 - **CatBoost achieves the best results** across all metrics.
-- Precision on the `no_injury` class is low across all models (~0.40–0.45), reflecting the difficulty of identifying the minority class in this imbalanced setting.
-- Recall on `injured` is high (> 0.90 for all models), meaning the models are effective at catching genuine injury accidents — the most operationally important outcome.
+- Precision on the `no_injury` class is low across all models (~0.41–0.48), reflecting the difficulty of identifying the minority class in this imbalanced setting.
+- Recall on `injured` is high across all models (0.77–0.83), meaning the models are effective at catching genuine injury accidents — the most operationally important outcome.
+
+### Business interpretation of metrics
+
+The best model correctly identifies 82% of injury accidents, which is critical in an emergency context where missing a true injury (false negative) has a much higher cost than over-dispatching resources (false positive).
 
 ### Production recommendation
 
@@ -244,21 +254,22 @@ SHAP (SHapley Additive exPlanations) was applied to the CatBoost model to unders
 
 The most influential features, ranked by mean absolute SHAP value:
 
-1. **Accident type** — the strongest predictor. Pedestrian knockdowns and road departures push strongly towards `injured`; rear-end and parking accidents push towards `no_injury`.
-2. **Number of vehicles** — multi-vehicle collisions are strongly associated with injury.
-3. **District** — provides moderate contextual signal; some districts are consistently riskier.
-4. **Time slot** — late night pushes slightly towards `injured`.
-5. **Vehicle flags** — motorcycle and scooter presence increases injury probability.
+1. **flag_moto** — the single strongest predictor by a wide margin. Motorcycle presence dominates the model's output: when a motorcycle is involved, injury probability rises sharply.
+2. **Accident type** — second strongest. Certain types (pedestrian knockdowns, road departures) push strongly towards `injured`; others (rear-end, parking) push towards `no_injury`.
+3. **flag_bike_scooter** — bike and scooter presence is a strong injury signal, similar in direction to motorcycles.
+4. **Number of people involved** (`n_people`) — more people in the accident correlates with higher injury probability.
+5. **Number of pedestrians** (`n_pedestrians`) — pedestrian presence pushes strongly towards `injured`.
+6. **District** and **GPS coordinates** — provide moderate geographic context; some locations are consistently riskier.
 
-**Least relevant features:** Season and weather conditions show very low SHAP values, confirming that these variables do not meaningfully differentiate injured from no-injury accidents. Alcohol and drug flags are also weak predictors globally due to the rarity of positive tests.
+**Least relevant features:** `n_vehicles` (total number of vehicles) is the weakest predictor in the model — at the bottom of the ranking. Hour, year, and weather conditions also show low SHAP values and do not meaningfully differentiate injured from no-injury outcomes.
 
 ### Error analysis
 
-**False negatives (injured predicted as no_injury):** These are accidents where the injury signal is weak — typically single-vehicle, low-risk accident type, off-peak hours. The model is not wrong to be uncertain — the features genuinely resemble a no-injury accident.
+**False negatives (injured predicted as no_injury):** The dominant driver is `flag_moto = False` (-0.64 SHAP). Without a motorcycle, the model loses its strongest injury signal. A low-risk accident type (e.g. frontal-lateral collision) compounds the effect, pulling the prediction well below the decision threshold even though an injury did occur.
 
-**False positives (no_injury predicted as injured):** These accidents share structural characteristics with the injured majority — multiple vehicles, risky time, high-risk accident type — but happened not to cause injury. The model over-generalises on structural risk factors, which is a reasonable behaviour in a triage context.
+**False positives (no_injury predicted as injured):** The dominant driver is `flag_moto = True` (+0.88 SHAP). Motorcycle presence pushes the score so strongly towards `injured` that the model rarely recovers, even when no injury occurred. Combined with higher people counts, the prediction score can reach 1.8 on a base rate of 0.82.
 
-Both error types concentrate on the same top features, confirming the model is failing on structurally ambiguous cases rather than random noise.
+`flag_moto` acts almost as a near-binary rule: its presence or absence is the single biggest determinant of whether the model is right or wrong. Both error types concentrate on this feature and `accident_type`, confirming the model is failing on structurally ambiguous cases rather than random noise.
 
 ---
 
@@ -282,13 +293,17 @@ The dataset includes UTM GPS coordinates for each accident. During cleaning we d
 
 This project demonstrates that it is possible to predict traffic accident injuries in Madrid using only information available at the moment the incident is reported, before any medical assessment takes place.
 
-The best model (CatBoost) achieves a ROC AUC of 0.873 and a balanced accuracy of 0.801. More importantly, the two strongest predictors are accident type and number of vehicles involved, both of which are captured in the initial report filed by the responding officer. This means the prediction can be made in real time, at the scene, with no additional data collection required.
+The best model (CatBoost) achieves a ROC AUC of 0.873 and a balanced accuracy of 0.801. More importantly, the two strongest predictors are motorcycle presence (`flag_moto`) and accident type, both of which are captured in the initial report filed by the responding officer. This means the prediction can be made in real time, at the scene, with no additional data collection required.
 
 The practical implication is concrete: emergency coordination services could use a model of this kind to prioritise resource dispatch. Accidents flagged as high injury probability would trigger faster ambulance allocation or alert nearby medical units, reducing response time in the cases where it matters most.
 
 The main current limitation is precision on the no injury class, which generates false positives. In an emergency context this is the preferable type of error  it is safer to dispatch resources unnecessarily than to fail to respond to a genuine injury  but it has operational cost implications that would need to be evaluated against the budget constraints of the deploying organisation.
 
 For a production deployment, Logistic Regression is the recommended model. It matches CatBoost closely enough in performance that its interpretability and low computational cost justify the choice, particularly in environments where decisions need to be auditable and explainable to non-technical stakeholders.
+
+### Final takeaway
+
+This project shows that even with imperfect and imbalanced real-world data, it is possible to build a reliable early-warning system for injury risk. While not a replacement for human judgment, such a model can act as a first triage layer, improving response times in critical situations.
 
 ---
 

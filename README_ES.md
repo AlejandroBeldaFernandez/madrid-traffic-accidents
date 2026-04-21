@@ -2,6 +2,10 @@
 
 Proyecto de clasificacion binaria supervisada para predecir si un accidente de trafico en Madrid resultara en al menos un herido, usando datos abiertos del Ayuntamiento de Madrid (2019–2023).
 
+- **Problema:** Predecir el riesgo de lesion a partir del primer informe del accidente, antes de cualquier evaluacion medica
+- **Resultado:** 83% de recall en accidentes con heridos, ROC AUC 0.873
+- **Valor:** Primera capa de triaje para el despacho de emergencias — permite una asignacion mas rapida de ambulancias en los casos que mas importan
+
 > [View this project in English](https://github.com/AlejandroBeldaFernandez/madrid-traffic-accidents/blob/main/README.md)
 
 ---
@@ -217,6 +221,8 @@ Se eligio balanced accuracy como metrica de validacion cruzada porque tiene en c
 
 ### Rendimiento en el conjunto de test
 
+> **Como leer las metricas:** El ROC AUC mide la capacidad de discriminacion global (1.0 = perfecto, 0.5 = aleatorio). La balanced accuracy ajusta el desbalanceo de clases promediando el recall entre ambas clases. El recall en `injured` mide cuantos accidentes con heridos reales detecta el modelo correctamente — la metrica operativamente mas critica.
+
 | Modelo | ROC AUC | Balanced Accuracy | F1 no_injury | F1 injured | Macro F1 |
 |---|---|---|---|---|---|
 | Regresion Logistica | 0.851 | 0.787 | 0.55 | 0.85 | 0.70 |
@@ -227,8 +233,12 @@ Se eligio balanced accuracy como metrica de validacion cruzada porque tiene en c
 
 - Los tres modelos rinden a un nivel similar. Las diferencias en ROC AUC y balanced accuracy son pequenas (< 0.03).
 - **CatBoost obtiene los mejores resultados** en todas las metricas.
-- La precision en la clase `no_injury` es baja en todos los modelos (~0.40–0.45), lo que refleja la dificultad de identificar la clase minoritaria en este escenario desbalanceado.
-- El recall en `injured` es alto (> 0.90 en todos los modelos), lo que significa que los modelos son eficaces detectando accidentes con heridos reales, que es el resultado operativamente mas importante.
+- La precision en la clase `no_injury` es baja en todos los modelos (~0.41–0.48), lo que refleja la dificultad de identificar la clase minoritaria en este escenario desbalanceado.
+- El recall en `injured` es alto en todos los modelos (0.77–0.83), lo que significa que los modelos son eficaces detectando accidentes con heridos reales, que es el resultado operativamente mas importante.
+
+### Interpretacion de negocio de las metricas
+
+El mejor modelo identifica correctamente el 82% de los accidentes con heridos, lo cual es critico en un contexto de emergencia donde no detectar una lesion real (falso negativo) tiene un coste mucho mayor que enviar recursos de mas (falso positivo).
 
 ### Recomendacion para produccion
 
@@ -244,21 +254,22 @@ Se aplicaron valores SHAP (SHapley Additive exPlanations) al modelo CatBoost par
 
 Las variables mas influyentes, ordenadas por valor SHAP absoluto medio:
 
-1. **Tipo de accidente** — el predictor mas fuerte. Los atropellos y las salidas de via empujan fuertemente hacia `injured`; los alcances y los accidentes de aparcamiento empujan hacia `no_injury`.
-2. **Numero de vehiculos** — las colisiones con multiples vehiculos estan fuertemente asociadas a lesiones.
-3. **Distrito** — aporta una señal contextual moderada; algunos distritos son consistentemente mas peligrosos.
-4. **Franja horaria** — la madrugada empuja ligeramente hacia `injured`.
-5. **Flags de vehiculo** — la presencia de moto o ciclomotor aumenta la probabilidad de lesion.
+1. **flag_moto** — el predictor mas fuerte por amplio margen. La presencia de una motocicleta domina la salida del modelo: cuando hay una moto implicada, la probabilidad de lesion sube drasticamente.
+2. **Tipo de accidente** — segundo en importancia. Ciertos tipos (atropellos, salidas de via) empujan fuertemente hacia `injured`; otros (alcances, aparcamiento) hacia `no_injury`.
+3. **flag_bike_scooter** — la presencia de bicicleta o ciclomotor es una señal de lesion fuerte, en la misma direccion que las motos.
+4. **Numero de personas implicadas** (`n_people`) — mas personas en el accidente correlaciona con mayor probabilidad de lesion.
+5. **Numero de peatones** (`n_pedestrians`) — la presencia de peatones empuja fuertemente hacia `injured`.
+6. **Distrito** y **coordenadas GPS** — aportan contexto geografico moderado; algunas ubicaciones son consistentemente mas peligrosas.
 
-**Variables menos relevantes:** La estacion y las condiciones meteorologicas muestran valores SHAP muy bajos, confirmando que estas variables no diferencian de forma significativa los accidentes con y sin heridos. Los flags de alcohol y drogas tambien son predictores debiles a nivel global debido a la rareza de los tests positivos.
+**Variables menos relevantes:** `n_vehicles` (numero total de vehiculos) es el predictor mas debil del modelo, en el ultimo lugar del ranking. La hora, el año y las condiciones meteorologicas tambien muestran valores SHAP bajos y no diferencian de forma significativa los resultados.
 
 ### Analisis de errores
 
-**Falsos negativos (injured predicho como no_injury):** Son accidentes donde la señal de lesion es debil, tipicamente de un solo vehiculo, tipo de accidente de bajo riesgo y fuera de las horas punta. El modelo no esta equivocado al ser incierto: las variables se parecen genuinamente a un accidente sin heridos.
+**Falsos negativos (injured predicho como no_injury):** El factor dominante es `flag_moto = False` (-0.64 SHAP). Sin moto, el modelo pierde su señal de lesion mas fuerte. Un tipo de accidente de bajo riesgo (por ejemplo, colision fronto-lateral) agrava el efecto, tirando la prediccion muy por debajo del umbral de decision aunque si hubo lesion.
 
-**Falsos positivos (no_injury predicho como injured):** Estos accidentes comparten caracteristicas estructurales con la mayoria de accidentes con heridos: multiples vehiculos, hora de riesgo, tipo de accidente peligroso, pero no llegaron a causar lesiones. El modelo sobregenealiza los factores de riesgo estructurales, lo cual es un comportamiento razonable en un contexto de triaje.
+**Falsos positivos (no_injury predicho como injured):** El factor dominante es `flag_moto = True` (+0.88 SHAP). La presencia de una moto empuja la puntuacion tan fuertemente hacia `injured` que el modelo rara vez se recupera, incluso cuando no hubo lesion. Combinado con un numero alto de personas, la puntuacion puede alcanzar 1.8 partiendo de una tasa base de 0.82.
 
-Ambos tipos de error se concentran en las mismas variables principales, confirmando que el modelo falla en casos estructuralmente ambiguos y no por ruido aleatorio.
+`flag_moto` funciona casi como una regla binaria: su presencia o ausencia es el principal determinante de si el modelo acierta o se equivoca. Ambos tipos de error se concentran en esta variable y en `accident_type`, confirmando que el modelo falla en los casos estructuralmente mas ambiguos y no por ruido aleatorio.
 
 ---
 
@@ -282,13 +293,17 @@ El dataset incluye coordenadas GPS UTM para cada accidente. Durante la limpieza 
 
 Este proyecto demuestra que es posible predecir lesiones en accidentes de trafico en Madrid usando unicamente informacion disponible en el momento en que se registra el incidente, antes de que se realice ninguna evaluacion medica.
 
-El mejor modelo (CatBoost) alcanza un ROC AUC de 0.873 y una balanced accuracy de 0.801. Mas importante aun, los dos predictores mas fuertes son el tipo de accidente y el numero de vehiculos implicados, ambos capturados en el informe inicial del agente interviniente. Esto significa que la prediccion puede realizarse en tiempo real, en el lugar del accidente, sin necesidad de recopilar datos adicionales.
+El mejor modelo (CatBoost) alcanza un ROC AUC de 0.873 y una balanced accuracy de 0.801. Mas importante aun, los dos predictores mas fuertes son la presencia de motocicleta (`flag_moto`) y el tipo de accidente, ambos capturados en el informe inicial del agente interviniente. Esto significa que la prediccion puede realizarse en tiempo real, en el lugar del accidente, sin necesidad de recopilar datos adicionales.
 
 La implicacion practica es concreta: los servicios de coordinacion de emergencias podrian usar un modelo de este tipo para priorizar el despacho de recursos. Los accidentes marcados como de alta probabilidad de lesion activarian una asignacion mas rapida de ambulancias o alertarian a unidades medicas cercanas, reduciendo el tiempo de respuesta en los casos donde mas importa.
 
 La principal limitacion actual es la precision en la clase sin heridos, que genera falsos positivos. En un contexto de emergencias este es el tipo de error preferible: es mas seguro enviar recursos innecesariamente que no responder a una lesion real. Sin embargo, tiene implicaciones de coste operativo que deberian evaluarse frente a las restricciones presupuestarias de la organizacion que lo desplegara.
 
 Para un despliegue en produccion, la Regresion Logistica es el modelo recomendado. Su rendimiento es suficientemente proximo al de CatBoost como para que su interpretabilidad y bajo coste computacional justifiquen la eleccion, especialmente en entornos donde las decisiones deben ser auditables y explicables para perfiles no tecnicos.
+
+### Conclusion final
+
+Este proyecto demuestra que, incluso con datos reales imperfectos y desbalanceados, es posible construir un sistema fiable de alerta temprana para el riesgo de lesiones. Sin ser un sustituto del juicio humano, un modelo de este tipo puede actuar como primera capa de triaje, mejorando los tiempos de respuesta en situaciones criticas.
 
 ---
 
